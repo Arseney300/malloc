@@ -11,11 +11,13 @@
 #include <string.h> 
 #include <stdint.h>
 #include <unistd.h>
-#define HEAP_SIZE 128  //128 bytes
+#define HEAP_SIZE 1024  //1024 bytes
 
 typedef struct Header{
 	uint8_t *ptr; 
-	uint8_t  size;
+	//uint32_t  size;
+	unsigned int size;
+	unsigned int x;
 } header_t;
 
 
@@ -101,6 +103,7 @@ void*  sw_malloc(const size_t size){
 				header_t *p;
 				size_t current_size = ptr->size - size_;
 				p = ptr + current_size;
+				printf("p-size: [%u]; size_ : [%u] \n",p->size, size_);
 				p->size = size_;
 				p->ptr = ptr->ptr;
 				ptr->size = current_size;
@@ -117,8 +120,70 @@ void*  sw_malloc(const size_t size){
 	}
 }
 
+void* sw_calloc(const size_t size){
+	header_t *ptr, *prev_ptr;
+	header_t timed;
+	//current size with header:
+	size_t size_ = sizeof(header_t) + size;
+	prev_ptr = freep;
+	if(freep == NULL){
+		//first call malloc
+		//need header, that be reference on self, because we will have only one block of data
+		timed.ptr = freep = prev_ptr = &timed;
+		timed.size = 0;
+	}
+	//run in free blocks.
+	for(ptr = prev_ptr->ptr;; prev_ptr = ptr, ptr = ptr->ptr){
+		if(ptr->size >= size_){
+		//big enough:
+			if(ptr->size == size_){
+				//exactly:
+				//set prev_ptr to next block after ptr
+				//and set free block to this block
+				prev_ptr->ptr = ptr->ptr;
+				freep = prev_ptr;
+				//return pointer to block:
+				//init zeros:
+				char*p_ = (char*)(ptr+1);
+				for(size_t i=0;i<size;++i, p_++)
+					*p_ = 0;
+				
+				return (void*)(ptr+1);
+			}
+			else{
+				//create new block in right part of big block:
+				header_t *p;
+				size_t current_size = ptr->size - size_;
+				p = ptr + current_size;
+				p->size = size_;
+				p->ptr = ptr->ptr;
+				ptr->size = current_size;
+				freep = ptr;
+				//init zeros:
+				char*p_ = (char*)(ptr+1);
+				for(size_t i =0;i< size;++i, p_++)
+					*p_ = 0;
+				return (void*)(p+1);
+			}
+		}
+		if(ptr == freep){
+			ptr = allocate(size_);
+			if(ptr == NULL){
+				return NULL; //memory out
+			}
+		}
+	}
+
+}
 
 void loger(){printf("%u\n",freep->size);}
+
+void calloc_test(){
+	int *a = sw_malloc(sizeof(int));
+	printf("malloc: [%u]\n", *a);
+	int *b = sw_calloc(sizeof(int));
+	printf("calloc: [%u]", *b);
+}
 
 int main(int argc, char**argv){
 	char *a = sw_malloc(100);
@@ -127,6 +192,7 @@ int main(int argc, char**argv){
 	loger();
 	free(b);
 	loger();
+	calloc_test();
 	return 0;
 }
 
