@@ -28,11 +28,11 @@ void sw_free(void *fptr){
 	header_t *bp, *ptr;
 	bp = (header_t*)fptr - 1; //point to block header
 	//search near:
-	for(ptr= freep; bp<=ptr || bp>=ptr->ptr  ; ptr = ptr->ptr){
-		if(ptr>= ptr->ptr && (bp > ptr || bp < ptr->ptr))
+	for(ptr= freep; (uint8_t*)bp<=(uint8_t*)ptr || (uint8_t*)bp>=(uint8_t*)ptr->ptr  ; ptr = ptr->ptr){
+		if((uint8_t*)ptr>= (uint8_t*)ptr->ptr && ((uint8_t*)bp > (uint8_t*)ptr ||(uint8_t*) bp < (uint8_t*)ptr->ptr))
 			break;
 	}
-	if(bp + bp->size == ptr->ptr){
+	if((uint8_t*)bp + bp->size == (uint8_t*)ptr->ptr){
 		header_t *t = ptr->ptr;
 		bp->size += t->size;
 		bp->ptr = t->ptr;
@@ -40,12 +40,12 @@ void sw_free(void *fptr){
 	else{
 		bp->ptr = ptr->ptr;
 	}
-	if(ptr + ptr->size == bp){
+	if((uint8_t*)ptr + ptr->size == (uint8_t*)bp){
 		ptr->size += bp->size;
 		ptr->ptr = bp->ptr;
 	}
 	else{
-		ptr->ptr = bp;
+		ptr->ptr = (void*)bp;
 	}
 	freep = ptr;
 }
@@ -100,7 +100,7 @@ void*  sw_malloc(const size_t size){
 				//create new block in right part of big block:
 				header_t *p;
 				size_t current_size = ptr->size - size_;
-				p = (uint8_t*)ptr + current_size;
+				p = (header_t*)((uint8_t*)ptr + current_size);
 				p->size = (unsigned)size_;
 				p->ptr = ptr->ptr;
 				ptr->size = current_size;
@@ -121,8 +121,7 @@ void*  sw_malloc(const size_t size){
 		}
 	}
 }
-
-void* sw_calloc(const size_t size){
+void*  sw_calloc(const size_t size){
 	header_t *ptr, *prev_ptr;
 	header_t timed;
 	//current size with header:
@@ -145,25 +144,22 @@ void* sw_calloc(const size_t size){
 				prev_ptr->ptr = ptr->ptr;
 				freep = prev_ptr;
 				//return pointer to block:
-				//init zeros:
-				char*p_ = (char*)(ptr+1);
-				for(size_t i=0;i<size;++i, p_++)
-					*p_ = 0;
-				
+				uint8_t*p_ = (uint8_t*)(ptr+1);
+				for(size_t i =0;i< size;++i,p_++)
+					*p_=0;
 				return (void*)(ptr+1);
 			}
 			else{
 				//create new block in right part of big block:
 				header_t *p;
 				size_t current_size = ptr->size - size_;
-				p = ptr + current_size;
-				p->size = size_;
+				p = (uint8_t*)ptr + current_size;
+				p->size = (unsigned)size_;
 				p->ptr = ptr->ptr;
 				ptr->size = current_size;
 				freep = ptr;
-				//init zeros:
-				char*p_ = (char*)(ptr+1);
-				for(size_t i =0;i< size;++i, p_++)
+				uint8_t*p_ = (uint8_t*)(p+1);
+				for(size_t i=0;i<size;++i,p_++)
 					*p_ = 0;
 				return (void*)(p+1);
 			}
@@ -175,31 +171,41 @@ void* sw_calloc(const size_t size){
 			}
 		}
 	}
-
 }
+
 
 void loger(){printf("%u\n",freep->size);}
 
 void calloc_test(){
+	loger();
 	int *a = sw_malloc(sizeof(int));
 	printf("malloc: [%u]\n", *a);
+	loger();
 	int *b = sw_calloc(sizeof(int));
-	printf("calloc: [%u]", *b);
+	loger();
+	printf("calloc: [%u]\n", *b);
 }
 
-int main(int argc, char**argv){
+
+int main(){
 	char *a = sw_malloc(100);
 	loger();
 	char *b = sw_malloc(60);
 	loger();
 	sw_free(b);
 	loger();
-	char*e = sw_malloc(2000);
-	e = "hello my friend";
+	char*e = sw_calloc(20);
+	printf("%p\n",e);
+	sw_free(e);
+	e = "hello my friend\0";
+	printf("%p\n",e);
+	//strcpy(e,"hello my friend");
 	printf("%s\n",e);
 	loger();
-	//calloc_test();
-	return 0;
+	calloc_test();
+	/*int *n = sw_malloc(4);
+	printf("%u\n",n);
+	int *n2*/
 }
 
 
